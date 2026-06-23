@@ -80,8 +80,10 @@ def _bridge_secrets():
     """Make the token in Streamlit secrets visible to the data layer (which
     reads os.environ). Safe when no secrets file exists."""
     try:
-        if "FOOTBALL_DATA_TOKEN" in st.secrets:
-            os.environ["FOOTBALL_DATA_TOKEN"] = st.secrets["FOOTBALL_DATA_TOKEN"]
+        for k in ("API_FOOTBALL_KEY", "API_FOOTBALL_HOST",
+                  "FOOTBALL_DATA_TOKEN"):
+            if k in st.secrets:
+                os.environ[k] = str(st.secrets[k])
     except Exception:  # noqa: BLE001 - no secrets.toml present
         pass
 

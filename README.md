@@ -28,34 +28,51 @@ streamlit run app.py
 Opens at <http://localhost:8501>. With no API token it uses
 `seed_data.json` (an editable, illustrative dataset).
 
-## Live data (football-data.org)
+## Live data
 
-1. Grab a free token at <https://www.football-data.org/client/register>.
+The app tries providers in order and falls back to the seed if none returns a
+complete 12-group draw:
+
+1. **API-Football (api-sports.io)** — *preferred*; has the live 2026 World Cup
+   draw and results (league `1`, season `2026`). Free tier ≈ 100 requests/day.
+2. **football-data.org** (`WC`) — fallback. World Cup is on its free tier, but
+   the 2026 draw may not be fully published there yet.
+3. **`seed_data.json`** — offline demo.
+
+### API-Football (preferred)
+
+1. Register at <https://www.api-football.com/> for a free key (direct
+   api-sports.io access, or via RapidAPI).
 2. Export it before running:
 
    ```bash
-   export FOOTBALL_DATA_TOKEN=your_token_here
+   export API_FOOTBALL_KEY=your_key_here
+   # If using RapidAPI instead of direct:
+   # export API_FOOTBALL_HOST=api-football-v1.p.rapidapi.com
    streamlit run app.py
    ```
 
-The app fetches the World Cup competition (`WC`) standings + matches and falls
-back to the seed file if the token is missing or the request fails.
+The header caption flips to **`API-Football (live)`** once it loads. The
+Matches tab's **top-scorers** leaderboard uses `/players/topscorers`. Per-match
+goalscorers (who scored in a specific game) need the `/fixtures/events`
+endpoint — one request per match, so it's skipped to stay within the free
+daily quota; individual matches show scores only.
 
-**What the free tier gives you:** standings, fixtures, results, and the
-tournament **top-scorers** leaderboard (shown on the Matches tab). **Per-match
-goalscorers** (who scored in a specific game) require football-data.org's paid
-"Deep Data" plan — without it, individual matches show scores only. The free
-plan allows 10 requests/minute; results are cached for 2 minutes.
+### football-data.org (fallback)
+
+Grab a free token at <https://www.football-data.org/client/register> and set
+`FOOTBALL_DATA_TOKEN`. Per-match goalscorers there require the paid "Deep Data"
+plan. Results are cached for 2 minutes; reload to refresh.
 
 ## Deploy to Streamlit Community Cloud (free, one public URL)
 
 1. Push this folder to a **public GitHub repo**.
 2. Go to <https://share.streamlit.io> → **New app** → pick the repo and
    `app.py`.
-3. Add the API token under **Advanced settings → Secrets**:
+3. Add your API key under **Advanced settings → Secrets**:
 
    ```toml
-   FOOTBALL_DATA_TOKEN = "your_token_here"
+   API_FOOTBALL_KEY = "your_key_here"
    ```
 
 4. Deploy → share the `*.streamlit.app` URL.

@@ -138,36 +138,138 @@ def from_football_data(token=None, competition="WC"):
     return matches_by_group, teams_by_group, None
 
 
-def top_scorers(token=None, competition="WC", limit=20):
-    """Tournament top scorers (free tier). Returns a list of
-    {player, team, goals, assists} or [] if unavailable."""
-    token = token or os.environ.get("FOOTBALL_DATA_TOKEN")
-    if not token:
-        return []
-    try:
-        resp = requests.get(
-            f"https://api.football-data.org/v4/competitions/{competition}/scorers",
-            headers={"X-Auth-Token": token},
-            params={"limit": limit}, timeout=20)
-        resp.raise_for_status()
-    except Exception:  # noqa: BLE001
-        return []
+def _af_headers(key, host):
+    """Auth headers for API-Football: direct (api-sports.io) or via RapidAPI."""
+    if host.endswith("api-sports.io"):
+        return {"x-apisports-key": key}
+    return {"x-rapidapi-key": key, "x-rapidapi-host": host}
+
+
+def from_api_football(key=None, host=None, league=1, season=2026):
+    """Fetch live group results from API-Football (api-sports.io).
+
+    Returns the same triple as load_seed(). Raises on HTTP errors or when the
+    full 12-group draw isn't published yet, so the caller can fall back.
+    """
+    key = key or os.environ.get("API_FOOTBALL_KEY")
+    if not key:
+        raise RuntimeError("no API_FOOTBALL_KEY set")
+    host = host or os.environ.get("API_FOOTBALL_HOST", "v3.football.api-sports.io")
+    base = f"https://{host}"
+    headers = _af_headers(key, host)
+    params = {"league": league, "season": season}
+
+    # Standings -> group -> teams. Response: [{league:{standings:[[row,...],...]}}]
+    st = requests.get(f"{base}/standings", headers=headers, params=params,
+                      timeout=20)
+    st.raise_for_status()
+    resp = st.json().get("response", [])
+    teams_by_group, team_group = {}, {}
+    if resp:
+        for group_table in resp[0].get("league", {}).get("standings", []):
+            for row in group_table:
+                grp = row.get("group", "")  # "Group A"
+                if "Group" not in grp:
+                    continue
+                letter = grp.split()[-1]
+                name = row["team"]["name"]
+                teams_by_group.setdefault(letter, []).append(name)
+                team_group[name] = letter
+
+    if len(teams_by_group) != 12 or any(len(t) != 4 for t in teams_by_group.values()):
+        raise RuntimeError(
+            f"API-Football WC draw incomplete ({len(teams_by_group)} groups); "
+            "using fallback")
+
+    # Fixtures -> played results, mapped to a group via the home team.
+    fx = requests.get(f"{base}/fixtures", headers=headers, params=params,
+                      timeout=20)
+    fx.raise_for_status()
+    results_by_group = {}
+    for f in fx.json().get("response", []):
+        if "Group" not in (f.get("league", {}).get("round", "") or ""):
+            continue
+        home = f["teams"]["home"]["name"]
+        away = f["teams"]["away"]["name"]
+        gh, ga = f["goals"]["home"], f["goals"]["away"]
+        if gh is None or ga is None:
+            continue  # not played yet
+        letter = team_group.get(home) or team_group.get(away)
+        if not letter:
+            continue
+        results_by_group.setdefault(letter, []).append({
+            "group": letter, "home": home, "away": away,
+            "home_goals": gh, "away_goals": ga, "scorers": [],
+        })
+
+    matches_by_group = {}
+    for letter, teams in teams_by_group.items():
+        matches_by_group[letter] = _round_robin(teams)
+        for m in matches_by_group[letter]:
+            m["group"] = letter
+        _apply_results(matches_by_group[letter], results_by_group.get(letter, []))
+    return matches_by_group, teams_by_group, None
+
+
+def _af_top_scorers(key, host, league, season, limit):
+    base = f"https://{host}"
+    resp = requests.get(f"{base}/players/topscorers",
+                        headers=_af_headers(key, host),
+                        params={"league": league, "season": season}, timeout=20)
+    resp.raise_for_status()
     out = []
-    for s in resp.json().get("scorers", []):
+    for s in resp.json().get("response", [])[:limit]:
+        stats = (s.get("statistics") or [{}])[0]
         out.append({
             "player": (s.get("player") or {}).get("name", "Unknown"),
-            "team": (s.get("team") or {}).get("name", ""),
-            "goals": s.get("goals") or 0,
-            "assists": s.get("assists") or 0,
+            "team": (stats.get("team") or {}).get("name", ""),
+            "goals": (stats.get("goals") or {}).get("total") or 0,
+            "assists": (stats.get("goals") or {}).get("assists") or 0,
         })
     return out
 
 
-def load(prefer_live=True):
-    """Try live data, fall back to seed. Returns (triple, source_label)."""
-    if prefer_live and os.environ.get("FOOTBALL_DATA_TOKEN"):
+def top_scorers(competition="WC", limit=20):
+    """Tournament top scorers from whichever live provider is configured.
+    Returns [{player, team, goals, assists}] or [] if unavailable."""
+    af_key = os.environ.get("API_FOOTBALL_KEY")
+    if af_key:
         try:
-            return from_football_data(), "football-data.org (live)"
-        except Exception as e:  # noqa: BLE001 - any failure -> seed fallback
-            print(f"[data] live fetch failed ({e}); using seed")
+            host = os.environ.get("API_FOOTBALL_HOST", "v3.football.api-sports.io")
+            return _af_top_scorers(af_key, host, 1, 2026, limit)
+        except Exception:  # noqa: BLE001
+            pass
+    fd_token = os.environ.get("FOOTBALL_DATA_TOKEN")
+    if fd_token:
+        try:
+            resp = requests.get(
+                f"https://api.football-data.org/v4/competitions/{competition}/scorers",
+                headers={"X-Auth-Token": fd_token},
+                params={"limit": limit}, timeout=20)
+            resp.raise_for_status()
+            return [{
+                "player": (s.get("player") or {}).get("name", "Unknown"),
+                "team": (s.get("team") or {}).get("name", ""),
+                "goals": s.get("goals") or 0,
+                "assists": s.get("assists") or 0,
+            } for s in resp.json().get("scorers", [])]
+        except Exception:  # noqa: BLE001
+            pass
+    return []
+
+
+def load(prefer_live=True):
+    """Try live providers in order (API-Football, then football-data.org),
+    fall back to the seed. Returns (triple, source_label)."""
+    if prefer_live:
+        if os.environ.get("API_FOOTBALL_KEY"):
+            try:
+                return from_api_football(), "API-Football (live)"
+            except Exception as e:  # noqa: BLE001
+                print(f"[data] API-Football fetch failed ({e})")
+        if os.environ.get("FOOTBALL_DATA_TOKEN"):
+            try:
+                return from_football_data(), "football-data.org (live)"
+            except Exception as e:  # noqa: BLE001
+                print(f"[data] football-data fetch failed ({e})")
     return load_seed(), "seed_data.json"
