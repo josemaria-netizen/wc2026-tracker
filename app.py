@@ -153,7 +153,7 @@ def main():
     st.caption(f"Data source: **{source}** · {len(standings)} groups")
 
     tab_home, tab_matches, tab_groups, tab_bracket, tab_odds = st.tabs(
-        ["💚 Hey Chunch", "⚽ Matches", "📊 Group standings",
+        ["🦙 Hey Chunch", "⚽ Matches", "📊 Group standings",
          "🏆 Projected bracket", "🎲 Knockout odds"])
 
     # --- Landing page ------------------------------------------------------
@@ -161,7 +161,7 @@ def main():
         st.markdown(
             """
             <div style="text-align:center; padding: 3rem 1rem;">
-              <div style="font-size:5rem; line-height:1;">⚽💚</div>
+              <div style="font-size:5rem; line-height:1;">⚽🦙</div>
               <h1 style="font-size:3.5rem; margin:1rem 0 0.5rem;">Hey Chunch!</h1>
               <p style="font-size:1.4rem; color:#a3a3a3; margin:0;">
                 Welcome to your very own World Cup tracker.
