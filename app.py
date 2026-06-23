@@ -15,6 +15,7 @@ import streamlit as st
 
 import data as D
 import project as P
+from flags import flag
 from simulate import run as run_sim
 from standings import all_groups, rank_third_places
 import bracket as B
@@ -39,6 +40,40 @@ def simulate(matches_by_group, teams_by_group, n, seed_ratings):
                    seed_ratings=seed_ratings)
 
 
+def render_match(m):
+    """Render one match: flags + names + score, with goalscorers underneath."""
+    home, away = m["home"], m["away"]
+    hg, ag = m.get("home_goals"), m.get("away_goals")
+    fh, fa = flag(home), flag(away)
+    played = hg is not None and ag is not None
+    if played:
+        st.markdown(
+            f"<div style='font-size:1.15rem;'>{fh} <b>{home}</b> "
+            f"<b>{hg} – {ag}</b> <b>{away}</b> {fa}</div>",
+            unsafe_allow_html=True)
+        scorers = m.get("scorers") or []
+        if scorers:
+            home_g = [s for s in scorers if s["team"] == home]
+            away_g = [s for s in scorers if s["team"] == away]
+
+            def fmt(lst):
+                return "  ·  ".join(
+                    f"⚽ {s['player']}"
+                    + (f" {s['minute']}'" if s.get("minute") is not None else "")
+                    for s in lst) or "—"
+            c1, c2 = st.columns(2)
+            c1.caption(fmt(home_g))
+            c2.caption(fmt(away_g))
+        else:
+            st.caption("Goalscorers not available for this match.")
+    else:
+        st.markdown(
+            f"<div style='font-size:1.15rem; color:#888;'>{fh} {home} "
+            f"<i>vs</i> {away} {fa} &nbsp;·&nbsp; <i>to be played</i></div>",
+            unsafe_allow_html=True)
+    st.write("")
+
+
 def main():
     st.title("⚽ World Cup 2026 — Live Tracker & Knockout Predictor")
 
@@ -57,9 +92,9 @@ def main():
     standings = all_groups(matches_by_group, teams_by_group)
     st.caption(f"Data source: **{source}** · {len(standings)} groups")
 
-    tab_home, tab_groups, tab_bracket, tab_odds = st.tabs(
-        ["💚 Hey Chunch", "📊 Group standings", "🏆 Projected bracket",
-         "🎲 Knockout odds"])
+    tab_home, tab_matches, tab_groups, tab_bracket, tab_odds = st.tabs(
+        ["💚 Hey Chunch", "⚽ Matches", "📊 Group standings",
+         "🏆 Projected bracket", "🎲 Knockout odds"])
 
     # --- Landing page ------------------------------------------------------
     with tab_home:
@@ -84,6 +119,18 @@ def main():
             """,
             unsafe_allow_html=True,
         )
+
+    # --- Matches -----------------------------------------------------------
+    with tab_matches:
+        st.caption("Games by group — flags, scores, and goalscorers. "
+                   "Matches without a score are still to be played.")
+        cols = st.columns(2)
+        for i, g in enumerate(sorted(matches_by_group)):
+            with cols[i % 2]:
+                st.subheader(f"Group {g}")
+                for m in matches_by_group[g]:
+                    render_match(m)
+                st.divider()
 
     # --- Group standings ---------------------------------------------------
     with tab_groups:

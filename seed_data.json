@@ -15,18 +15,57 @@
     "L": ["Italy", "Poland", "Tunisia", "Costa Rica"]
   },
   "results": [
-    {"group": "A", "home": "Mexico", "away": "South Korea", "home_goals": 2, "away_goals": 1},
-    {"group": "A", "home": "Saudi Arabia", "away": "Honduras", "home_goals": 1, "away_goals": 1},
-    {"group": "D", "home": "United States", "away": "Australia", "home_goals": 2, "away_goals": 0},
-    {"group": "D", "home": "Senegal", "away": "Wales", "home_goals": 1, "away_goals": 0},
-    {"group": "E", "home": "Argentina", "away": "Austria", "home_goals": 2, "away_goals": 0},
-    {"group": "E", "home": "Algeria", "away": "Jordan", "home_goals": 1, "away_goals": 0},
-    {"group": "F", "home": "Morocco", "away": "Scotland", "home_goals": 2, "away_goals": 0},
-    {"group": "F", "home": "Brazil", "away": "Haiti", "home_goals": 3, "away_goals": 0},
-    {"group": "G", "home": "France", "away": "Ivory Coast", "home_goals": 3, "away_goals": 1},
-    {"group": "G", "home": "Norway", "away": "New Zealand", "home_goals": 2, "away_goals": 0},
-    {"group": "H", "home": "England", "away": "Croatia", "home_goals": 2, "away_goals": 1},
-    {"group": "H", "home": "Ghana", "away": "Panama", "home_goals": 1, "away_goals": 1}
+    {"group": "A", "home": "Mexico", "away": "South Korea", "home_goals": 2, "away_goals": 1,
+     "scorers": [
+       {"team": "Mexico", "player": "Raúl Jiménez", "minute": 23},
+       {"team": "Mexico", "player": "Santiago Giménez", "minute": 67},
+       {"team": "South Korea", "player": "Son Heung-min", "minute": 80}]},
+    {"group": "A", "home": "Saudi Arabia", "away": "Honduras", "home_goals": 1, "away_goals": 1,
+     "scorers": [
+       {"team": "Saudi Arabia", "player": "Salem Al-Dawsari", "minute": 55},
+       {"team": "Honduras", "player": "Anthony Lozano", "minute": 78}]},
+    {"group": "D", "home": "United States", "away": "Australia", "home_goals": 2, "away_goals": 0,
+     "scorers": [
+       {"team": "United States", "player": "Christian Pulisic", "minute": 12},
+       {"team": "United States", "player": "Folarin Balogun", "minute": 70}]},
+    {"group": "D", "home": "Senegal", "away": "Wales", "home_goals": 1, "away_goals": 0,
+     "scorers": [
+       {"team": "Senegal", "player": "Sadio Mané", "minute": 33}]},
+    {"group": "E", "home": "Argentina", "away": "Austria", "home_goals": 2, "away_goals": 0,
+     "scorers": [
+       {"team": "Argentina", "player": "Lionel Messi", "minute": 40},
+       {"team": "Argentina", "player": "Julián Álvarez", "minute": 75}]},
+    {"group": "E", "home": "Algeria", "away": "Jordan", "home_goals": 1, "away_goals": 0,
+     "scorers": [
+       {"team": "Algeria", "player": "Riyad Mahrez", "minute": 60}]},
+    {"group": "F", "home": "Morocco", "away": "Scotland", "home_goals": 2, "away_goals": 0,
+     "scorers": [
+       {"team": "Morocco", "player": "Hakim Ziyech", "minute": 22},
+       {"team": "Morocco", "player": "Youssef En-Nesyri", "minute": 64}]},
+    {"group": "F", "home": "Brazil", "away": "Haiti", "home_goals": 3, "away_goals": 0,
+     "scorers": [
+       {"team": "Brazil", "player": "Vinícius Júnior", "minute": 15},
+       {"team": "Brazil", "player": "Rodrygo", "minute": 50},
+       {"team": "Brazil", "player": "Raphinha", "minute": 88}]},
+    {"group": "G", "home": "France", "away": "Ivory Coast", "home_goals": 3, "away_goals": 1,
+     "scorers": [
+       {"team": "France", "player": "Kylian Mbappé", "minute": 10},
+       {"team": "France", "player": "Kylian Mbappé", "minute": 55},
+       {"team": "France", "player": "Antoine Griezmann", "minute": 70},
+       {"team": "Ivory Coast", "player": "Sébastien Haller", "minute": 80}]},
+    {"group": "G", "home": "Norway", "away": "New Zealand", "home_goals": 2, "away_goals": 0,
+     "scorers": [
+       {"team": "Norway", "player": "Erling Haaland", "minute": 30},
+       {"team": "Norway", "player": "Erling Haaland", "minute": 66}]},
+    {"group": "H", "home": "England", "away": "Croatia", "home_goals": 2, "away_goals": 1,
+     "scorers": [
+       {"team": "England", "player": "Harry Kane", "minute": 25},
+       {"team": "England", "player": "Bukayo Saka", "minute": 60},
+       {"team": "Croatia", "player": "Luka Modrić", "minute": 78}]},
+    {"group": "H", "home": "Ghana", "away": "Panama", "home_goals": 1, "away_goals": 1,
+     "scorers": [
+       {"team": "Ghana", "player": "Mohammed Kudus", "minute": 44},
+       {"team": "Panama", "player": "José Fajardo", "minute": 70}]}
   ],
   "seed_ratings": {
     "Argentina": 2010, "France": 2000, "Spain": 1995, "England": 1975,

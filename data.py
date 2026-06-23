@@ -25,12 +25,14 @@ import requests
 
 def _round_robin(teams):
     """6 matches for a 4-team group, all goals None."""
-    return [{"home": a, "away": b, "home_goals": None, "away_goals": None}
+    return [{"home": a, "away": b, "home_goals": None, "away_goals": None,
+             "scorers": []}
             for a, b in combinations(teams, 2)]
 
 
 def _apply_results(matches, results):
-    """Overlay played scores onto the fixture list, matching either orientation."""
+    """Overlay played scores (and scorers) onto the fixture list, matching
+    either orientation."""
     index = {}
     for m in matches:
         index[(m["home"], m["away"])] = m
@@ -45,6 +47,8 @@ def _apply_results(matches, results):
             if m:
                 m["home_goals"] = r["away_goals"]
                 m["away_goals"] = r["home_goals"]
+        if m:
+            m["scorers"] = r.get("scorers", [])
 
 
 def load_seed(path="seed_data.json"):
@@ -98,12 +102,21 @@ def from_football_data(token=None, competition="WC"):
             continue
         letter = grp.split("_")[-1]
         ft = mtch.get("score", {}).get("fullTime", {})
+        # Goal-scorer events are only present on paid tiers; default to [].
+        scorers = []
+        for g in mtch.get("goals", []) or []:
+            scorers.append({
+                "team": (g.get("team") or {}).get("name", ""),
+                "player": (g.get("scorer") or {}).get("name", "Unknown"),
+                "minute": g.get("minute"),
+            })
         results_by_group.setdefault(letter, []).append({
             "group": letter,
             "home": mtch["homeTeam"]["name"],
             "away": mtch["awayTeam"]["name"],
             "home_goals": ft.get("home"),
             "away_goals": ft.get("away"),
+            "scorers": scorers,
         })
 
     matches_by_group = {}
