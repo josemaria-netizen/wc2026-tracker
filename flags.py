@@ -17,6 +17,11 @@ NAME_TO_ISO2 = {
     "Germany": "DE", "Switzerland": "CH", "Nigeria": "NG", "Uzbekistan": "UZ",
     "Netherlands": "NL", "Denmark": "DK", "Cameroon": "CM", "Bolivia": "BO",
     "Italy": "IT", "Poland": "PL", "Tunisia": "TN", "Costa Rica": "CR",
+    # Names as returned by API-Football for the real 2026 draw.
+    "USA": "US", "Czechia": "CZ", "South Africa": "ZA", "Paraguay": "PY",
+    "Türkiye": "TR", "Turkey": "TR", "Curaçao": "CW", "Sweden": "SE",
+    "Iraq": "IQ", "Bosnia & Herzegovina": "BA", "Congo DR": "CD",
+    "DR Congo": "CD", "Cape Verde Islands": "CV", "Cape Verde": "CV",
 }
 
 # Subdivisions without an ISO2 country code have dedicated flag emojis.

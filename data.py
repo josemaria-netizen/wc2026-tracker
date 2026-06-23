@@ -166,12 +166,15 @@ def from_api_football(key=None, host=None, league=1, season=2026):
     resp = st.json().get("response", [])
     teams_by_group, team_group = {}, {}
     if resp:
+        valid = set("ABCDEFGHIJKL")
         for group_table in resp[0].get("league", {}).get("standings", []):
             for row in group_table:
-                grp = row.get("group", "")  # "Group A"
-                if "Group" not in grp:
+                # Real groups are labelled "Group A".."Group L"; the API also
+                # returns a "Group Stage" table (third-place ranking) we skip.
+                parts = (row.get("group", "") or "").split()
+                if len(parts) != 2 or parts[0] != "Group" or parts[1] not in valid:
                     continue
-                letter = grp.split()[-1]
+                letter = parts[1]
                 name = row["team"]["name"]
                 teams_by_group.setdefault(letter, []).append(name)
                 team_group[name] = letter
