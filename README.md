@@ -41,6 +41,12 @@ Opens at <http://localhost:8501>. With no API token it uses
 The app fetches the World Cup competition (`WC`) standings + matches and falls
 back to the seed file if the token is missing or the request fails.
 
+**What the free tier gives you:** standings, fixtures, results, and the
+tournament **top-scorers** leaderboard (shown on the Matches tab). **Per-match
+goalscorers** (who scored in a specific game) require football-data.org's paid
+"Deep Data" plan — without it, individual matches show scores only. The free
+plan allows 10 requests/minute; results are cached for 2 minutes.
+
 ## Deploy to Streamlit Community Cloud (free, one public URL)
 
 1. Push this folder to a **public GitHub repo**.

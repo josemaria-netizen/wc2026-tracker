@@ -10,6 +10,8 @@ Run locally:   streamlit run app.py
 Deploy:        push to GitHub, connect at share.streamlit.io
 """
 
+import os
+
 import pandas as pd
 import streamlit as st
 
@@ -74,7 +76,18 @@ def render_match(m):
     st.write("")
 
 
+def _bridge_secrets():
+    """Make the token in Streamlit secrets visible to the data layer (which
+    reads os.environ). Safe when no secrets file exists."""
+    try:
+        if "FOOTBALL_DATA_TOKEN" in st.secrets:
+            os.environ["FOOTBALL_DATA_TOKEN"] = st.secrets["FOOTBALL_DATA_TOKEN"]
+    except Exception:  # noqa: BLE001 - no secrets.toml present
+        pass
+
+
 def main():
+    _bridge_secrets()
     st.title("⚽ World Cup 2026 — Live Tracker & Knockout Predictor")
 
     with st.sidebar:
@@ -124,6 +137,18 @@ def main():
     with tab_matches:
         st.caption("Games by group — flags, scores, and goalscorers. "
                    "Matches without a score are still to be played.")
+        scorers = D.top_scorers()
+        if scorers:
+            st.subheader("👟 Golden Boot race — top scorers")
+            sdf = pd.DataFrame(scorers)
+            sdf.insert(0, "#", range(1, len(sdf) + 1))
+            sdf["player"] = [f"{flag(r['team'])} {r['player']}"
+                             for r in scorers]
+            sdf = sdf[["#", "player", "team", "goals", "assists"]]
+            sdf.columns = ["#", "Player", "Team", "Goals", "Assists"]
+            st.dataframe(sdf, hide_index=True, use_container_width=True)
+            st.divider()
+
         cols = st.columns(2)
         for i, g in enumerate(sorted(matches_by_group)):
             with cols[i % 2]:

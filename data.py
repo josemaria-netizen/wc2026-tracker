@@ -86,7 +86,10 @@ def from_football_data(token=None, competition="WC"):
     standings.raise_for_status()
     teams_by_group = {}
     for s in standings.json().get("standings", []):
-        grp = s.get("group", "")  # e.g. "GROUP_A"
+        # Each group can return TOTAL/HOME/AWAY variants; keep only TOTAL.
+        if s.get("type") and s.get("type") != "TOTAL":
+            continue
+        grp = s.get("group", "") or ""  # e.g. "GROUP_A"
         if not grp.startswith("GROUP_"):
             continue
         letter = grp.split("_")[-1]
@@ -126,6 +129,31 @@ def from_football_data(token=None, competition="WC"):
             m["group"] = letter
         _apply_results(matches_by_group[letter], results_by_group.get(letter, []))
     return matches_by_group, teams_by_group, None
+
+
+def top_scorers(token=None, competition="WC", limit=20):
+    """Tournament top scorers (free tier). Returns a list of
+    {player, team, goals, assists} or [] if unavailable."""
+    token = token or os.environ.get("FOOTBALL_DATA_TOKEN")
+    if not token:
+        return []
+    try:
+        resp = requests.get(
+            f"https://api.football-data.org/v4/competitions/{competition}/scorers",
+            headers={"X-Auth-Token": token},
+            params={"limit": limit}, timeout=20)
+        resp.raise_for_status()
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for s in resp.json().get("scorers", []):
+        out.append({
+            "player": (s.get("player") or {}).get("name", "Unknown"),
+            "team": (s.get("team") or {}).get("name", ""),
+            "goals": s.get("goals") or 0,
+            "assists": s.get("assists") or 0,
+        })
+    return out
 
 
 def load(prefer_live=True):
