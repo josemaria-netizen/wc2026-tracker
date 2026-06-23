@@ -57,8 +57,33 @@ def main():
     standings = all_groups(matches_by_group, teams_by_group)
     st.caption(f"Data source: **{source}** · {len(standings)} groups")
 
-    tab_groups, tab_bracket, tab_odds = st.tabs(
-        ["📊 Group standings", "🏆 Projected bracket", "🎲 Knockout odds"])
+    tab_home, tab_groups, tab_bracket, tab_odds = st.tabs(
+        ["💚 Hey Chunch", "📊 Group standings", "🏆 Projected bracket",
+         "🎲 Knockout odds"])
+
+    # --- Landing page ------------------------------------------------------
+    with tab_home:
+        st.markdown(
+            """
+            <div style="text-align:center; padding: 3rem 1rem;">
+              <div style="font-size:5rem; line-height:1;">⚽💚</div>
+              <h1 style="font-size:3.5rem; margin:1rem 0 0.5rem;">Hey Chunch!</h1>
+              <p style="font-size:1.4rem; color:#a3a3a3; margin:0;">
+                Welcome to your very own World Cup tracker.
+              </p>
+              <p style="font-size:1.1rem; color:#8b8b8b; max-width:640px;
+                        margin:1.5rem auto 0;">
+                I built this just for you. Flip through the tabs to see the live
+                group standings, the projected knockout bracket, and each team's
+                odds of going all the way. 🏆
+              </p>
+              <p style="font-size:1rem; color:#22c55e; margin-top:2rem;">
+                Made with love ❤️
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # --- Group standings ---------------------------------------------------
     with tab_groups:
