@@ -23,10 +23,15 @@ from itertools import combinations
 import requests
 
 
+# In-play status codes. API-Football short codes + football-data statuses.
+LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "SUSP", "INT", "LIVE",
+                 "IN_PLAY", "PAUSED"}
+
+
 def _round_robin(teams):
     """6 matches for a 4-team group, all goals None."""
     return [{"home": a, "away": b, "home_goals": None, "away_goals": None,
-             "scorers": []}
+             "scorers": [], "live": False, "elapsed": None}
             for a, b in combinations(teams, 2)]
 
 
@@ -49,6 +54,8 @@ def _apply_results(matches, results):
                 m["away_goals"] = r["home_goals"]
         if m:
             m["scorers"] = r.get("scorers", [])
+            m["live"] = r.get("live", False)
+            m["elapsed"] = r.get("elapsed")
 
 
 def load_seed(path="seed_data.json"):
@@ -120,6 +127,8 @@ def from_football_data(token=None, competition="WC"):
             "home_goals": ft.get("home"),
             "away_goals": ft.get("away"),
             "scorers": scorers,
+            "live": mtch.get("status") in LIVE_STATUSES,
+            "elapsed": mtch.get("minute"),
         })
 
     # Trust live data only when the full 12-group / 4-team draw is published;
@@ -196,13 +205,16 @@ def from_api_football(key=None, host=None, league=1, season=2026):
         away = f["teams"]["away"]["name"]
         gh, ga = f["goals"]["home"], f["goals"]["away"]
         if gh is None or ga is None:
-            continue  # not played yet
+            continue  # not kicked off yet
+        status = (f.get("fixture", {}).get("status", {}) or {})
         letter = team_group.get(home) or team_group.get(away)
         if not letter:
             continue
         results_by_group.setdefault(letter, []).append({
             "group": letter, "home": home, "away": away,
             "home_goals": gh, "away_goals": ga, "scorers": [],
+            "live": status.get("short") in LIVE_STATUSES,
+            "elapsed": status.get("elapsed"),
         })
 
     matches_by_group = {}

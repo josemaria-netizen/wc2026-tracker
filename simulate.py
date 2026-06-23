@@ -79,7 +79,9 @@ def _sim_group(matches, teams, ratings, rng):
     """Fill in unplayed matches, return ordered standings."""
     sim = []
     for m in matches:
-        if m.get("home_goals") is not None and m.get("away_goals") is not None:
+        final = (m.get("home_goals") is not None
+                 and m.get("away_goals") is not None and not m.get("live"))
+        if final:
             sim.append(m)
         else:
             winner, hg, ag = _sim_match(m["home"], m["away"], ratings, False, rng)
@@ -98,6 +100,9 @@ def run(matches_by_group, teams_by_group, n=10000, seed_ratings=None, rng=None):
 
     all_teams = [r["team"] for t in base_standings.values() for r in t]
     counts = {t: defaultdict(int) for t in all_teams}
+    # Per-R32-slot occupant tallies, for bracket predictions.
+    slot_counts = {mn: {"home": defaultdict(int), "away": defaultdict(int)}
+                   for mn, _, _ in B.ROUND_OF_32}
 
     for _ in range(n):
         standings = {g: _sim_group(matches_by_group[g], teams_by_group.get(g),
@@ -124,6 +129,8 @@ def run(matches_by_group, teams_by_group, n=10000, seed_ratings=None, rng=None):
         for match_no, hs, as_ in B.ROUND_OF_32:
             home = slots[hs]
             away = third_team[match_no] if as_.startswith("3?") else slots[as_]
+            slot_counts[match_no]["home"][home] += 1
+            slot_counts[match_no]["away"][away] += 1
             w, _, _ = _sim_match(home, away, ratings, True, rng)
             winners[match_no] = w
             counts[w]["r16"] += 1
@@ -141,4 +148,13 @@ def run(matches_by_group, teams_by_group, n=10000, seed_ratings=None, rng=None):
         counts[champ]["champion"] += 1
 
     stages = ["r32", "r16", "qf", "sf", "final", "champion", "group_winner"]
-    return {t: {s: counts[t][s] / n for s in stages} for t in all_teams}, ratings
+    probs = {t: {s: counts[t][s] / n for s in stages} for t in all_teams}
+
+    def _modal(tally):
+        team, c = max(tally.items(), key=lambda kv: kv[1])
+        p = c / n
+        return {"team": team, "prob": p, "certain": p >= 0.9995}
+
+    slot_pred = {mn: {"home": _modal(sc["home"]), "away": _modal(sc["away"])}
+                 for mn, sc in slot_counts.items()}
+    return probs, ratings, slot_pred

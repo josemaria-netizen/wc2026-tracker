@@ -71,18 +71,26 @@ def match_card_html(m):
     home_won = played and hg > ag
     away_won = played and ag > hg
 
+    live = bool(m.get("live"))
     if played:
-        chip = (f"<span style='background:#222c3e;border-radius:6px;padding:"
+        bg = "#b91c1c" if live else "#222c3e"
+        chip = (f"<span style='background:{bg};border-radius:6px;padding:"
                 f"3px 10px;font-weight:700;color:#fff;font-variant-numeric:"
                 f"tabular-nums;'>{hg}&nbsp;–&nbsp;{ag}</span>")
     else:
         chip = "<span style='color:#5b6477;font-size:0.85em;'>vs</span>"
 
     card = (f"<div style='display:flex;align-items:center;gap:8px;padding:"
-            f"7px 4px;border-bottom:1px solid #20283600;'>"
+            f"7px 4px;'>"
             f"{_name_cell(home, flag(home), 'right', home_won)}"
             f"<div style='flex:0 0 64px;text-align:center;'>{chip}</div>"
             f"{_name_cell(away, flag(away), 'left', away_won)}</div>")
+
+    if live:
+        el = f" · {m['elapsed']}'" if m.get("elapsed") else ""
+        card += (f"<div style='text-align:center;font-size:0.66em;color:#ef4444;"
+                 f"font-weight:700;letter-spacing:0.6px;padding-bottom:4px;'>"
+                 f"🔴 LIVE{el}</div>")
 
     # Goalscorers only when the provider supplied them (kept compact).
     scorers = m.get("scorers") or []
@@ -208,9 +216,13 @@ def main():
                 df = pd.DataFrame(standings[g])[
                     ["rank", "team", "played", "won", "drawn", "lost",
                      "gf", "ga", "gd", "points"]]
+                df["team"] = [f"{flag(t)} {t}" for t in df["team"]]
                 df.columns = ["#", "Team", "P", "W", "D", "L", "GF", "GA",
                               "GD", "Pts"]
-                st.dataframe(df, hide_index=True, use_container_width=True)
+                st.dataframe(df, hide_index=True, use_container_width=True,
+                             column_config={
+                                 "Pts": st.column_config.NumberColumn(
+                                     "Pts", help="Points", width="small")})
 
         st.subheader("Best third-placed teams (top 8 advance)")
         thirds = rank_third_places(standings)
@@ -225,12 +237,21 @@ def main():
     with tab_bracket:
         st.subheader("Knockout bracket")
         r32 = P.project_round_of_32(standings)
-        any_tbd = any(m["home"] == "TBD" or m["away"] == "TBD" for m in r32)
-        if any_tbd:
-            st.info("Round-of-32 teams fill in as groups are decided; later "
-                    "rounds show **Winner M##** until those matches exist. "
-                    "Third-place slots need all 12 groups complete.")
-        html, height = build_bracket_html(r32)
+        can_predict = (len(standings) == 12
+                       and all(len(t) >= 4 for t in standings.values()))
+        if can_predict:
+            _, _, r32_pred = simulate(matches_by_group, teams_by_group, n_sims,
+                                      seed_ratings)
+        else:
+            def _entry(name):
+                return (None if name == "TBD"
+                        else {"team": name, "prob": None, "certain": False})
+            r32_pred = {m["match"]: {"home": _entry(m["home"]),
+                                     "away": _entry(m["away"])} for m in r32}
+        st.caption("Solid = already mathematically certain · faded with a % = "
+                   "most likely team to land there (Monte-Carlo) · later rounds "
+                   "show Winner M## until those matches exist.")
+        html, height = build_bracket_html(r32_pred)
         components.html(html, height=height, scrolling=True)
 
         with st.expander("Round of 32 — table view"):
@@ -258,8 +279,8 @@ def main():
                        "simulation is paused. (Standings, matches, and the "
                        "bracket above still work.)")
             st.stop()
-        probs, ratings = simulate(matches_by_group, teams_by_group, n_sims,
-                                  seed_ratings)
+        probs, ratings, _ = simulate(matches_by_group, teams_by_group, n_sims,
+                                     seed_ratings)
         rows = []
         for team, p in probs.items():
             rows.append({"Team": team, "Rating": round(ratings.get(team, 1500)),

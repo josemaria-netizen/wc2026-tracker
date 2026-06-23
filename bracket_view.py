@@ -25,17 +25,25 @@ TITLES = ["Round of 32", "Round of 16", "Quarter-finals", "Semi-finals",
 BW, BH, COLGAP, SLOT0 = 172, 46, 46, 58
 
 
-def _team_line(name, top):
+def _team_line(entry, top):
+    """entry: {team, prob, certain} or None. Certain -> solid; predicted ->
+    dimmed with a probability badge."""
     radius = "5px 5px 0 0" if top else "0 0 5px 5px"
+    name = (entry or {}).get("team")
     if not name or name == "TBD":
         return (f"<div style='height:22px;display:flex;align-items:center;"
                 f"padding:0 8px;color:#5b6477;font-size:12px;font-style:italic;"
                 f"border-radius:{radius};'>TBD</div>")
+    certain = entry.get("certain")
+    prob = entry.get("prob")
+    color = "#e6ebf5" if certain else "#97a1b4"
+    pct = ("" if certain or prob is None else
+           f"<span style='font-size:10px;color:#5f6b80;'>{prob * 100:.0f}%</span>")
     return (f"<div style='height:22px;display:flex;align-items:center;gap:6px;"
-            f"padding:0 8px;font-size:13px;color:#e6ebf5;border-radius:{radius};'>"
+            f"padding:0 8px;font-size:13px;color:{color};border-radius:{radius};'>"
             f"<span>{flag(name)}</span>"
-            f"<span style='overflow:hidden;text-overflow:ellipsis;"
-            f"white-space:nowrap;'>{name}</span></div>")
+            f"<span style='flex:1;overflow:hidden;text-overflow:ellipsis;"
+            f"white-space:nowrap;'>{name}</span>{pct}</div>")
 
 
 def _feeder_line(match_no, top):
@@ -58,9 +66,9 @@ def _line(x, y, w, h):
             f"width:{w:.1f}px;height:{h:.1f}px;background:#39414f;'></div>")
 
 
-def build_bracket_html(r32_matches):
-    """r32_matches: list of {match, home, away}. Returns (html, canvas_height)."""
-    r32 = {m["match"]: (m["home"], m["away"]) for m in r32_matches}
+def build_bracket_html(r32_pred):
+    """r32_pred: {match_no: {"home": entry, "away": entry}} where entry is
+    {team, prob, certain} or None. Returns (html, canvas_height)."""
     n0 = len(ORDERS[0])
     H = n0 * SLOT0
     nr = len(ORDERS)
@@ -90,8 +98,9 @@ def build_bracket_html(r32_matches):
         for j, mn in enumerate(ORDERS[r]):
             x, y = cx(r), cy(r, j) - BH / 2
             if r == 0:
-                home, away = r32.get(mn, ("TBD", "TBD"))
-                t1, t2 = _team_line(home, True), _team_line(away, False)
+                pred = r32_pred.get(mn, {})
+                t1 = _team_line(pred.get("home"), True)
+                t2 = _team_line(pred.get("away"), False)
             else:
                 a, b = ORDERS[r - 1][2 * j], ORDERS[r - 1][2 * j + 1]
                 t1, t2 = _feeder_line(a, True), _feeder_line(b, False)

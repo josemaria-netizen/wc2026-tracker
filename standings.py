@@ -25,7 +25,10 @@ def _blank_row(team):
 
 
 def _is_played(m):
-    return m.get("home_goals") is not None and m.get("away_goals") is not None
+    # Live (in-play) games don't count toward the official table until final.
+    return (m.get("home_goals") is not None
+            and m.get("away_goals") is not None
+            and not m.get("live"))
 
 
 def compute_group(matches, teams=None):
