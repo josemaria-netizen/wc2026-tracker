@@ -43,8 +43,10 @@ def load_data(prefer_live):
     return D.load(prefer_live=prefer_live)
 
 
+# Note: name is versioned (…_v2) so a redeploy never reuses an older cached
+# return shape from @st.cache_data. Bump the suffix if the return type changes.
 @st.cache_data(ttl=600, show_spinner="Simulating tournament…")
-def simulate(matches_by_group, teams_by_group, n, seed_ratings):
+def simulate_v2(matches_by_group, teams_by_group, n, seed_ratings):
     return run_sim(matches_by_group, teams_by_group, n=n,
                    seed_ratings=seed_ratings)
 
@@ -239,10 +241,14 @@ def main():
         r32 = P.project_round_of_32(standings)
         can_predict = (len(standings) == 12
                        and all(len(t) >= 4 for t in standings.values()))
+        r32_pred = None
         if can_predict:
-            _, _, r32_pred = simulate(matches_by_group, teams_by_group, n_sims,
-                                      seed_ratings)
-        else:
+            try:
+                _, _, r32_pred = simulate_v2(matches_by_group, teams_by_group,
+                                             n_sims, seed_ratings)
+            except Exception:  # noqa: BLE001 - fall back to plain bracket
+                r32_pred = None
+        if r32_pred is None:
             def _entry(name):
                 return (None if name == "TBD"
                         else {"team": name, "prob": None, "certain": False})
@@ -279,8 +285,12 @@ def main():
                        "simulation is paused. (Standings, matches, and the "
                        "bracket above still work.)")
             st.stop()
-        probs, ratings, _ = simulate(matches_by_group, teams_by_group, n_sims,
-                                     seed_ratings)
+        try:
+            probs, ratings, _ = simulate_v2(matches_by_group, teams_by_group,
+                                            n_sims, seed_ratings)
+        except Exception:  # noqa: BLE001
+            st.warning("Odds are temporarily unavailable — try reloading.")
+            st.stop()
         rows = []
         for team, p in probs.items():
             rows.append({"Team": team, "Rating": round(ratings.get(team, 1500)),
