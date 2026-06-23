@@ -206,6 +206,12 @@ def main():
         st.subheader("Advancement & title odds")
         st.caption(f"{n_sims:,} Monte-Carlo simulations · Poisson goal model, "
                    "ratings blended from seed values and live form.")
+        if len(standings) != 12 or any(len(t) < 4 for t in standings.values()):
+            st.warning("Title odds need all 12 groups of 4 teams. The current "
+                       "data source doesn't have the full draw yet, so the "
+                       "simulation is paused. (Standings, matches, and the "
+                       "bracket above still work.)")
+            st.stop()
         probs, ratings = simulate(matches_by_group, teams_by_group, n_sims,
                                   seed_ratings)
         rows = []

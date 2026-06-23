@@ -122,6 +122,13 @@ def from_football_data(token=None, competition="WC"):
             "scorers": scorers,
         })
 
+    # Trust live data only when the full 12-group / 4-team draw is published;
+    # anything partial would break the bracket, so fall back to the seed.
+    if len(teams_by_group) != 12 or any(len(t) != 4 for t in teams_by_group.values()):
+        raise RuntimeError(
+            f"WC live data incomplete ({len(teams_by_group)} groups); "
+            "using seed")
+
     matches_by_group = {}
     for letter, teams in teams_by_group.items():
         matches_by_group[letter] = _round_robin(teams)
