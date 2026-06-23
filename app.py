@@ -49,38 +49,54 @@ def simulate(matches_by_group, teams_by_group, n, seed_ratings):
                    seed_ratings=seed_ratings)
 
 
-def render_match(m):
-    """Render one match: flags + names + score, with goalscorers underneath."""
+def _name_cell(name, flag_html, align, won):
+    """One team cell: name + flag, right- or left-aligned, bold if winner."""
+    weight = "600" if won else "400"
+    color = "#e6ebf5" if won else "#aab3c4"
+    parts = ([f"<span style='font-weight:{weight};color:{color};overflow:hidden;"
+              f"text-overflow:ellipsis;white-space:nowrap;'>{name}</span>",
+              f"<span>{flag_html}</span>"])
+    if align == "left":
+        parts = parts[::-1]
+    return (f"<div style='flex:1;display:flex;align-items:center;gap:7px;"
+            f"justify-content:flex-{'end' if align == 'right' else 'start'};"
+            f"min-width:0;'>{''.join(parts)}</div>")
+
+
+def match_card_html(m):
+    """One clean, aligned match row: home | score chip | away."""
     home, away = m["home"], m["away"]
     hg, ag = m.get("home_goals"), m.get("away_goals")
-    fh, fa = flag(home), flag(away)
     played = hg is not None and ag is not None
-    if played:
-        st.markdown(
-            f"<div style='font-size:1.15rem;'>{fh} <b>{home}</b> "
-            f"<b>{hg} – {ag}</b> <b>{away}</b> {fa}</div>",
-            unsafe_allow_html=True)
-        scorers = m.get("scorers") or []
-        if scorers:
-            home_g = [s for s in scorers if s["team"] == home]
-            away_g = [s for s in scorers if s["team"] == away]
+    home_won = played and hg > ag
+    away_won = played and ag > hg
 
-            def fmt(lst):
-                return "  ·  ".join(
-                    f"⚽ {s['player']}"
-                    + (f" {s['minute']}'" if s.get("minute") is not None else "")
-                    for s in lst) or "—"
-            c1, c2 = st.columns(2)
-            c1.caption(fmt(home_g))
-            c2.caption(fmt(away_g))
-        else:
-            st.caption("Goalscorers not available for this match.")
+    if played:
+        chip = (f"<span style='background:#222c3e;border-radius:6px;padding:"
+                f"3px 10px;font-weight:700;color:#fff;font-variant-numeric:"
+                f"tabular-nums;'>{hg}&nbsp;–&nbsp;{ag}</span>")
     else:
-        st.markdown(
-            f"<div style='font-size:1.15rem; color:#888;'>{fh} {home} "
-            f"<i>vs</i> {away} {fa} &nbsp;·&nbsp; <i>to be played</i></div>",
-            unsafe_allow_html=True)
-    st.write("")
+        chip = "<span style='color:#5b6477;font-size:0.85em;'>vs</span>"
+
+    card = (f"<div style='display:flex;align-items:center;gap:8px;padding:"
+            f"7px 4px;border-bottom:1px solid #20283600;'>"
+            f"{_name_cell(home, flag(home), 'right', home_won)}"
+            f"<div style='flex:0 0 64px;text-align:center;'>{chip}</div>"
+            f"{_name_cell(away, flag(away), 'left', away_won)}</div>")
+
+    # Goalscorers only when the provider supplied them (kept compact).
+    scorers = m.get("scorers") or []
+    if scorers:
+        def fmt(team):
+            return " · ".join(
+                f"{s['player']}"
+                + (f" {s['minute']}'" if s.get("minute") is not None else "")
+                for s in scorers if s["team"] == team) or "&nbsp;"
+        card += (f"<div style='display:flex;font-size:0.72em;color:#7c8699;"
+                 f"padding:0 4px 6px;'><div style='flex:1;text-align:right;'>⚽ "
+                 f"{fmt(home)}</div><div style='flex:0 0 64px;'></div>"
+                 f"<div style='flex:1;text-align:left;'>{fmt(away)} ⚽</div></div>")
+    return card
 
 
 def _bridge_secrets():
@@ -156,8 +172,8 @@ def main():
 
     # --- Matches -----------------------------------------------------------
     with tab_matches:
-        st.caption("Games by group — flags, scores, and goalscorers. "
-                   "Matches without a score are still to be played.")
+        st.caption("Games by group · scores update live · played matches "
+                   "shown first.")
         scorers = D.top_scorers()
         if scorers:
             st.subheader("👟 Golden Boot race — top scorers")
@@ -173,10 +189,15 @@ def main():
         cols = st.columns(2)
         for i, g in enumerate(sorted(matches_by_group)):
             with cols[i % 2]:
-                st.subheader(f"Group {g}")
-                for m in matches_by_group[g]:
-                    render_match(m)
-                st.divider()
+                with st.container(border=True):
+                    st.markdown(f"##### Group {g}")
+                    # Played matches first, then upcoming.
+                    ordered = sorted(
+                        matches_by_group[g],
+                        key=lambda m: m.get("home_goals") is None)
+                    st.markdown(
+                        "".join(match_card_html(m) for m in ordered),
+                        unsafe_allow_html=True)
 
     # --- Group standings ---------------------------------------------------
     with tab_groups:
