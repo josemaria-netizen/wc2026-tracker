@@ -14,10 +14,17 @@ import os
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 import data as D
 import project as P
+from bracket_view import build_bracket_html
 from flags import flag
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:  # noqa: BLE001 - optional dependency
+    st_autorefresh = None
 from simulate import run as run_sim
 from standings import all_groups, rank_third_places
 import bracket as B
@@ -31,12 +38,12 @@ STAGE_LABELS = [
 ]
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=60)
 def load_data(prefer_live):
     return D.load(prefer_live=prefer_live)
 
 
-@st.cache_data(ttl=120, show_spinner="Simulating tournament…")
+@st.cache_data(ttl=600, show_spinner="Simulating tournament…")
 def simulate(matches_by_group, teams_by_group, n, seed_ratings):
     return run_sim(matches_by_group, teams_by_group, n=n,
                    seed_ratings=seed_ratings)
@@ -94,12 +101,24 @@ def main():
 
     with st.sidebar:
         st.header("Settings")
-        prefer_live = st.toggle("Use live data (football-data.org)", value=True,
+        prefer_live = st.toggle("Use live data", value=True,
                                 help="Falls back to seed_data.json if no API "
-                                     "token or the fetch fails.")
+                                     "key or the fetch fails.")
         n_sims = st.select_slider("Simulations", [2000, 5000, 10000, 25000],
                                   value=10000)
-        st.caption("Set FOOTBALL_DATA_TOKEN in the environment / Streamlit "
+
+        st.divider()
+        auto = st.toggle("🔄 Auto-refresh", value=False,
+                         help="Periodically reload to pull the latest scores.")
+        if auto:
+            secs = st.select_slider("Every", [30, 60, 120, 300], value=60,
+                                    format_func=lambda s: f"{s}s")
+            if st_autorefresh:
+                st_autorefresh(interval=secs * 1000, key="live_refresh")
+            else:
+                st.caption("`streamlit-autorefresh` not installed — add it to "
+                           "requirements.txt to enable.")
+        st.caption("Set API_FOOTBALL_KEY (or FOOTBALL_DATA_TOKEN) in Streamlit "
                    "secrets for live results.")
 
     (matches_by_group, teams_by_group, seed_ratings), source = \
@@ -183,19 +202,23 @@ def main():
 
     # --- Projected bracket -------------------------------------------------
     with tab_bracket:
-        st.subheader("Round of 32")
+        st.subheader("Knockout bracket")
         r32 = P.project_round_of_32(standings)
         any_tbd = any(m["home"] == "TBD" or m["away"] == "TBD" for m in r32)
         if any_tbd:
-            st.info("Some slots show **TBD** — they resolve once every group "
-                    "finishes its three matches (third-place seeding needs all "
-                    "12 groups complete).")
-        rows = [{"Match": m["match"],
-                 "Home": m["home"], "": "vs", "Away": m["away"],
-                 "Bracket slot": f'{m["home_slot"]} v {m["away_slot"]}'}
-                for m in r32]
-        st.dataframe(pd.DataFrame(rows), hide_index=True,
-                     use_container_width=True)
+            st.info("Round-of-32 teams fill in as groups are decided; later "
+                    "rounds show **Winner M##** until those matches exist. "
+                    "Third-place slots need all 12 groups complete.")
+        html, height = build_bracket_html(r32)
+        components.html(html, height=height, scrolling=True)
+
+        with st.expander("Round of 32 — table view"):
+            rows = [{"Match": m["match"],
+                     "Home": m["home"], "": "vs", "Away": m["away"],
+                     "Bracket slot": f'{m["home_slot"]} v {m["away_slot"]}'}
+                    for m in r32]
+            st.dataframe(pd.DataFrame(rows), hide_index=True,
+                         use_container_width=True)
         with st.expander("How third-place teams are slotted"):
             st.markdown(
                 "Each `3?` slot is restricted to a fixed set of 5 groups. Once "
