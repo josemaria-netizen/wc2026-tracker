@@ -9,9 +9,10 @@ derive an expected goal difference from the rating gap and draw each side's
 goals from a Poisson distribution. Knockout draws go to penalties, decided by
 a rating-weighted coin flip.
 
-Ratings can be supplied externally (e.g. seeded FIFA/Elo ratings). If absent,
-a team's rating is inferred from its group-stage results so far, blended with
-a neutral prior, so the model self-calibrates as real results come in.
+Ratings start from real-world Elo priors (see ``ratings.py``) and are updated
+by replaying the actual group-stage results as Elo updates, so form is
+opponent-weighted: beating a strong team moves you more than thrashing a weak
+one, and the model self-calibrates as real results come in.
 """
 
 import math
@@ -19,29 +20,51 @@ import random
 from collections import defaultdict
 
 import bracket as B
-from standings import all_groups, rank_third_places
+from standings import rank_third_places
 
 BASE_GOALS = 1.35          # league-average goals per team per match
-RATING_TO_GOALS = 1 / 280  # how strongly a rating gap moves expected goals
+# Calibrated (see calibrate.py): with BASE_GOALS=1.35 this makes the Poisson
+# match model's win/points-share track the standard Elo expectation
+# 1/(1+10^(-gap/400)) to within ~1% up to a 300-point gap.
+RATING_TO_GOALS = 1 / 175
+ELO_SCALE = 400.0          # standard Elo: a 400-point gap = 10x odds
+PEN_SCALE = 600.0          # flatter scale for shootouts (closer to a coin flip)
+FORM_K = 60.0              # Elo gain factor for a World Cup match (eloratings)
 PRIOR_RATING = 1500.0
 
 
-def infer_ratings(standings, seed_ratings=None):
-    """Blend any seeded ratings with form derived from results so far."""
+def _mov_multiplier(gd):
+    """Margin-of-victory weight, per the World Football Elo formula."""
+    if gd <= 1:
+        return 1.0
+    if gd == 2:
+        return 1.5
+    return (11 + gd) / 8.0
+
+
+def infer_ratings(matches_by_group, priors=None):
+    """Start from real-world Elo priors and replay every finished group match
+    as an Elo update. Beating a stronger side (a result the prior did not
+    expect) moves a team more than beating a weaker one."""
+    priors = priors or {}
     ratings = {}
-    for table in standings.values():
-        for r in table:
-            form = 0.0
-            if r["played"] > 0:
-                ppg = r["points"] / r["played"]
-                gd_pg = r["gd"] / r["played"]
-                form = (ppg - 1.0) * 90 + gd_pg * 55
-            base = (seed_ratings or {}).get(r["team"], PRIOR_RATING)
-            # Weight observed form more as more matches are played.
-            w = min(r["played"], 3) / 3 * 0.6
-            ratings[r["team"]] = base * (1 - w) + (PRIOR_RATING + form) * w \
-                if not seed_ratings or r["team"] not in seed_ratings \
-                else base + form * w
+    for matches in matches_by_group.values():
+        for m in matches:
+            for team in (m["home"], m["away"]):
+                ratings.setdefault(team, priors.get(team, PRIOR_RATING))
+
+    for matches in matches_by_group.values():
+        for m in matches:
+            hg, ag = m.get("home_goals"), m.get("away_goals")
+            if hg is None or ag is None or m.get("live"):
+                continue  # not finished — don't let live games move ratings
+            a, b = m["home"], m["away"]
+            ra, rb = ratings[a], ratings[b]
+            exp_a = 1.0 / (1.0 + 10 ** (-(ra - rb) / ELO_SCALE))
+            score_a = 1.0 if hg > ag else 0.0 if ag > hg else 0.5
+            delta = FORM_K * _mov_multiplier(abs(hg - ag)) * (score_a - exp_a)
+            ratings[a] = ra + delta
+            ratings[b] = rb - delta
     return ratings
 
 
@@ -55,7 +78,7 @@ def _sim_match(a, b, ratings, knockout=False, rng=random):
     gb = _poisson(lb, rng)
     if knockout and ga == gb:
         # Penalties: rating-weighted, near coin-flip.
-        p = 1 / (1 + 10 ** (-(ra - rb) / 600))
+        p = 1 / (1 + 10 ** (-(ra - rb) / PEN_SCALE))
         return (a, ga, gb) if rng.random() < p else (b, ga, gb)
     if ga > gb:
         return (a, ga, gb)
@@ -91,14 +114,16 @@ def _sim_group(matches, teams, ratings, rng):
     return compute_group(sim, teams)
 
 
-def run(matches_by_group, teams_by_group, n=10000, seed_ratings=None, rng=None):
+def run(matches_by_group, teams_by_group, n=10000, priors=None, rng=None):
     """Run n simulations. Return per-team probabilities (0-1) of reaching
-    each stage and winning the title."""
-    rng = rng or random.Random(12345)
-    base_standings = all_groups(matches_by_group, teams_by_group)
-    ratings = infer_ratings(base_standings, seed_ratings)
+    each stage and winning the title.
 
-    all_teams = [r["team"] for t in base_standings.values() for r in t]
+    ``priors`` maps every team in the draw to its real-world Elo prior (see
+    ``ratings.build_priors``); the group results then nudge each rating."""
+    rng = rng or random.Random(12345)
+    ratings = infer_ratings(matches_by_group, priors)
+
+    all_teams = list(ratings.keys())
     counts = {t: defaultdict(int) for t in all_teams}
     # Per-R32-slot occupant tallies, for bracket predictions.
     slot_counts = {mn: {"home": defaultdict(int), "away": defaultdict(int)}

@@ -20,6 +20,8 @@ import data as D
 import project as P
 from bracket_view import build_bracket_html
 from flags import flag
+import ratings as R
+import market as M
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -43,12 +45,11 @@ def load_data(prefer_live):
     return D.load(prefer_live=prefer_live)
 
 
-# Note: name is versioned (…_v2) so a redeploy never reuses an older cached
-# return shape from @st.cache_data. Bump the suffix if the return type changes.
+# Note: name is versioned (…_v3) so a redeploy never reuses an older cached
+# return shape from @st.cache_data. Bump the suffix if the args/return change.
 @st.cache_data(ttl=600, show_spinner="Simulating tournament…")
-def simulate_v2(matches_by_group, teams_by_group, n, seed_ratings):
-    return run_sim(matches_by_group, teams_by_group, n=n,
-                   seed_ratings=seed_ratings)
+def simulate_v3(matches_by_group, teams_by_group, n, priors):
+    return run_sim(matches_by_group, teams_by_group, n=n, priors=priors)
 
 
 def _name_cell(name, flag_html, align, won):
@@ -132,6 +133,12 @@ def main():
                                      "key or the fetch fails.")
         n_sims = st.select_slider("Simulations", [2000, 5000, 10000, 25000],
                                   value=10000)
+        market_pull = st.slider(
+            "Betting-market influence", 0, 100, 50, 10,
+            format="%d%%",
+            help="How far to pull team ratings toward the bookmakers' "
+                 "title-winner odds. 0% = pure Elo model; 100% = trust the "
+                 "market. Flows through every round of the simulation.") / 100.0
 
         st.divider()
         auto = st.toggle("🔄 Auto-refresh", value=False,
@@ -147,9 +154,14 @@ def main():
         st.caption("Set API_FOOTBALL_KEY (or FOOTBALL_DATA_TOKEN) in Streamlit "
                    "secrets for live results.")
 
-    (matches_by_group, teams_by_group, seed_ratings), source = \
+    (matches_by_group, teams_by_group, _seed_ratings), source = \
         load_data(prefer_live)
     standings = all_groups(matches_by_group, teams_by_group)
+    # Real-world Elo priors for every team in the draw — the single source of
+    # truth for team strength, used for live AND seed data. (seed_ratings is
+    # ignored: ratings.py supersedes the old hand-tuned block.) Then pull the
+    # ratings toward the betting market by the chosen amount.
+    priors = M.blend_priors(R.build_priors(matches_by_group), market_pull)
     st.caption(f"Data source: **{source}** · {len(standings)} groups")
 
     tab_home, tab_matches, tab_groups, tab_bracket, tab_odds = st.tabs(
@@ -244,8 +256,8 @@ def main():
         r32_pred = None
         if can_predict:
             try:
-                _, _, r32_pred = simulate_v2(matches_by_group, teams_by_group,
-                                             n_sims, seed_ratings)
+                _, _, r32_pred = simulate_v3(matches_by_group, teams_by_group,
+                                             n_sims, priors)
             except Exception:  # noqa: BLE001 - fall back to plain bracket
                 r32_pred = None
         if r32_pred is None:
@@ -277,8 +289,10 @@ def main():
     # --- Knockout odds -----------------------------------------------------
     with tab_odds:
         st.subheader("Advancement & title odds")
-        st.caption(f"{n_sims:,} Monte-Carlo simulations · Poisson goal model, "
-                   "ratings blended from seed values and live form.")
+        st.caption(f"{n_sims:,} Monte-Carlo simulations · Poisson goal model · "
+                   "real World-Football-Elo priors, updated by live results · "
+                   f"ratings pulled {market_pull:.0%} toward the betting market · "
+                   "🏠 = host (home-field boost).")
         if len(standings) != 12 or any(len(t) < 4 for t in standings.values()):
             st.warning("Title odds need all 12 groups of 4 teams. The current "
                        "data source doesn't have the full draw yet, so the "
@@ -286,22 +300,51 @@ def main():
                        "bracket above still work.)")
             st.stop()
         try:
-            probs, ratings, _ = simulate_v2(matches_by_group, teams_by_group,
-                                            n_sims, seed_ratings)
+            probs, ratings, _ = simulate_v3(matches_by_group, teams_by_group,
+                                            n_sims, priors)
         except Exception:  # noqa: BLE001
             st.warning("Odds are temporarily unavailable — try reloading.")
             st.stop()
         rows = []
         for team, p in probs.items():
-            rows.append({"Team": team, "Rating": round(ratings.get(team, 1500)),
-                         **{label: p[key] for key, label in STAGE_LABELS}})
+            label_team = f"🏠 {team}" if R.is_host(team) else team
+            rows.append({"Team": label_team,
+                         "Rating": round(ratings.get(team, 1500)),
+                         **{label: p[key] for key, label in STAGE_LABELS},
+                         "Mkt": M.implied_prob(team)})
         df = pd.DataFrame(rows).sort_values(
             ["Champion", "Final", "SF"], ascending=False)
+        pct_cols = [label for _, label in STAGE_LABELS] + ["Mkt"]
         styled = df.style.format(
-            {label: "{:.1%}" for _, label in STAGE_LABELS})
-        st.dataframe(styled, hide_index=True, use_container_width=True,
-                     height=560)
+            {c: (lambda v: "—" if pd.isna(v) else f"{v:.1%}") for c in pct_cols})
+        st.dataframe(styled, hide_index=True, use_container_width=True, height=560,
+                     column_config={"Mkt": st.column_config.Column(
+                         "Mkt", help="Bookmakers' devigged title odds — the "
+                         "real-money market, for comparison with the model's "
+                         "Champion column.")})
         st.bar_chart(df.set_index("Team")["Champion"].head(12))
+
+        with st.expander("How these odds are built"):
+            st.markdown(
+                "- **Real strength priors.** Every team starts from its "
+                "World-Football-Elo rating (eloratings.net scale), not a flat "
+                "average — so a powerhouse and a minnow never look alike.\n"
+                "- **Opponent-weighted form.** Played group games update those "
+                "ratings Elo-style: beating a strong side moves you more than "
+                "thrashing a weak one. Live (in-progress) games don't count "
+                "until final.\n"
+                "- **Host boost (🏠).** USA, Mexico and Canada carry a "
+                "home-field bump folded into their rating.\n"
+                "- **Betting-market pull.** Ratings are nudged toward the "
+                "bookmakers' title odds by the sidebar slider, so real-money "
+                "opinion flows through every round. The **Mkt** column shows "
+                "those odds (de-vigged) next to the model's Champion %.\n"
+                "- **Calibrated goal model.** The rating gap maps to expected "
+                "goals so a match win probability tracks the Elo formula "
+                "`1/(1+10^(-gap/400))`.\n"
+                f"- **{n_sims:,} simulations.** Each percentage is the share of "
+                "simulated tournaments a team reached that round, so the "
+                "numbers wiggle slightly each refresh — more sims = steadier.")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 {
-  "_note": "Illustrative seed for offline demo. Groups E, F, H and the listed results reflect real reporting as of 2026-06-23; other groups are plausible fillers. The live football-data.org API is the source of truth — set FOOTBALL_DATA_TOKEN to use it.",
+  "_note": "Illustrative seed for offline demo. Groups E, F, H and the listed results reflect real reporting as of 2026-06-23; other groups are plausible fillers. The live football-data.org API is the source of truth — set FOOTBALL_DATA_TOKEN to use it. Team strength now lives in ratings.py (real World-Football-Elo); this file no longer carries seed_ratings.",
   "groups": {
     "A": ["Mexico", "South Korea", "Saudi Arabia", "Honduras"],
     "B": ["Canada", "Belgium", "Ecuador", "Qatar"],
@@ -66,23 +66,5 @@
      "scorers": [
        {"team": "Ghana", "player": "Mohammed Kudus", "minute": 44},
        {"team": "Panama", "player": "José Fajardo", "minute": 70}]}
-  ],
-  "seed_ratings": {
-    "Argentina": 2010, "France": 2000, "Spain": 1995, "England": 1975,
-    "Brazil": 1970, "Portugal": 1950, "Netherlands": 1930, "Belgium": 1900,
-    "Germany": 1900, "Italy": 1885, "Croatia": 1850, "Morocco": 1840,
-    "Uruguay": 1835, "Colombia": 1825, "Mexico": 1790, "United States": 1785,
-    "Switzerland": 1780, "Denmark": 1775, "Japan": 1770, "Senegal": 1765,
-    "Norway": 1760, "Austria": 1755, "South Korea": 1740, "Australia": 1700,
-    "Ecuador": 1700, "Poland": 1695, "Canada": 1690, "Nigeria": 1685,
-    "Ivory Coast": 1680, "Algeria": 1675, "Egypt": 1670, "Scotland": 1660,
-    "Iran": 1655, "Tunisia": 1640, "Cameroon": 1635, "Wales": 1630,
-    "Ghana": 1625, "Panama": 1560, "Qatar": 1555, "Saudi Arabia": 1550,
-    "Uzbekistan": 1545, "Costa Rica": 1540, "Honduras": 1520, "Jordan": 1500,
-    "New Zealand": 1490, "Curacao": 1450, "Bolivia": 1440, "Haiti": 1420,
-    "USA": 1785, "Czechia": 1700, "Sweden": 1740, "Türkiye": 1715,
-    "Paraguay": 1690, "Bosnia & Herzegovina": 1650, "Congo DR": 1640,
-    "South Africa": 1620, "Iraq": 1560, "Cape Verde Islands": 1520,
-    "Curaçao": 1450
-  }
+  ]
 }
